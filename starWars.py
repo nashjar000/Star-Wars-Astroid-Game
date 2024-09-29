@@ -12,7 +12,7 @@ screen_height = 480
 screen = pygame.display.set_mode((screen_width, screen_height))
 
 # Set the title of the window
-pygame.display.set_caption('Star Wars Astroid')
+pygame.display.set_caption('Star Wars Astroid Game')
 
 # Load the spaceship image
 spaceship_image = pygame.image.load('millennium_falcon.png')
@@ -80,6 +80,30 @@ asteroids = generate_asteroids()
 explosion_sound = pygame.mixer.Sound('TIE_fighter_explode.mp3')
 explosion_sound.set_volume(0.5)  # Adjust the volume as needed
 
+start_game = True
+while start_game:
+    # Handle events
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_KP_ENTER or event.key == pygame.K_RETURN:
+                start_game = False
+
+    # Draw the start game screen
+    screen.fill(BLACK)
+    font = pygame.font.Font(None, 36)
+    blink = pygame.time.get_ticks() % 1000 < 500
+    text = font.render('Press Enter to start', 1, WHITE if blink else BLACK)
+    textpos = text.get_rect(center=(screen_width / 2, screen_height / 2))
+    screen.blit(text, textpos)
+
+    # Update the screen
+    pygame.display.flip()
+    pygame.time.Clock().tick(60) 
+
+# Main game loop
 while True:
     # Handle events
     for event in pygame.event.get():
@@ -150,5 +174,5 @@ while True:
 
     # Update the screen
     pygame.display.flip()
-    pygame.time.Clock().tick(60) 
+    pygame.time.Clock().tick(60)
 
