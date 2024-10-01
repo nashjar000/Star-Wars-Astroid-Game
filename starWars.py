@@ -80,6 +80,9 @@ asteroids = generate_asteroids()
 explosion_sound = pygame.mixer.Sound('TIE_fighter_explode.mp3')
 explosion_sound.set_volume(0.5)  # Adjust the volume as needed
 
+score = 0
+font = pygame.font.Font(None, 36)
+
 start_game = True
 while start_game:
     # Handle events
@@ -93,10 +96,11 @@ while start_game:
 
     # Draw the start game screen
     screen.fill(BLACK)
+    text = font.render('Press Enter to start', 1, WHITE)
+    textpos = text.get_rect(center=(screen_width / 2, screen_height / 2))
     font = pygame.font.Font(None, 36)
     blink = pygame.time.get_ticks() % 1000 < 500
     text = font.render('Press Enter to start', 1, WHITE if blink else BLACK)
-    textpos = text.get_rect(center=(screen_width / 2, screen_height / 2))
     screen.blit(text, textpos)
 
     # Update the screen
@@ -146,11 +150,12 @@ while True:
     # Check for collisions
     if not asteroids:
         asteroids = generate_asteroids()
+        score += 1
 
     for asteroid_x, asteroid_y in asteroids:
         if (spaceship_x - 15 < asteroid_x < spaceship_x + 15 and
             spaceship_y - 15 < asteroid_y < spaceship_y + 15):
-            print("Game Over!")
+            print(f"Game Over! Your score is {score}")
             pygame.quit()
             sys.exit()
 
@@ -162,6 +167,7 @@ while True:
                 asteroids.remove((asteroid_x, asteroid_y))
                 lasers.remove(laser)
                 explosion_sound.play()
+                score += 1
                 break
 
     # Draw everything
@@ -171,6 +177,11 @@ while True:
         screen.blit(asteroid_image, (asteroid_x, asteroid_y))
     for laser in lasers:
         laser.draw(screen)
+
+    # Draw the score
+    score_text = font.render(f'Score: {score}', 1, WHITE)
+    score_textpos = score_text.get_rect(topright=(screen_width - 10, 10))
+    screen.blit(score_text, score_textpos)
 
     # Update the screen
     pygame.display.flip()
