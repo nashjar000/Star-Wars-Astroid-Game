@@ -2,6 +2,7 @@ import pygame
 import sys
 import random
 import pygame.mixer
+import os
 
 # Initialize Pygame
 pygame.init()
@@ -107,6 +108,14 @@ while start_game:
     pygame.display.flip()
     pygame.time.Clock().tick(60) 
 
+# Load the high score from the file
+high_score_file = 'high_score.txt'
+if os.path.exists(high_score_file):
+    with open(high_score_file, 'r') as f:
+        high_score = int(f.read())
+else:
+    high_score = 0
+
 # Main game loop
 while True:
     # Handle events
@@ -155,7 +164,7 @@ while True:
     for asteroid_x, asteroid_y in asteroids:
         if (spaceship_x - 15 < asteroid_x < spaceship_x + 15 and
             spaceship_y - 15 < asteroid_y < spaceship_y + 15):
-            print(f"Game Over! Your score is {score}")
+            print(f"Game Over! Your score is {score}. High score: {high_score}")
             pygame.quit()
             sys.exit()
 
@@ -178,12 +187,21 @@ while True:
     for laser in lasers:
         laser.draw(screen)
 
-    # Draw the score
+    # Draw the score and high score
     score_text = font.render(f'Score: {score}', 1, WHITE)
     score_textpos = score_text.get_rect(topright=(screen_width - 10, 10))
+    high_score_text = font.render(f'High Score: {high_score}', 1, WHITE)
+    high_score_textpos = high_score_text.get_rect(topright=(screen_width - 10, 50))
     screen.blit(score_text, score_textpos)
+    screen.blit(high_score_text, high_score_textpos)
 
     # Update the screen
     pygame.display.flip()
     pygame.time.Clock().tick(60)
+
+    # Save the high score
+    if score > high_score:
+        with open(high_score_file, 'w') as f:
+            f.write(str(score))
+        high_score = score
 
