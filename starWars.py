@@ -167,7 +167,7 @@ while True:
     for asteroid_x, asteroid_y in asteroids:
         if (spaceship_x - 15 < asteroid_x < spaceship_x + 15 and
             spaceship_y - 15 < asteroid_y < spaceship_y + 15):
-            print(f"Game Over! Your score is {score}. High score: {high_score}")
+            print(f"Game Over! Your score is {score}. Level: {level}. High score: {high_score}")
             pygame.quit()
             sys.exit()
 
