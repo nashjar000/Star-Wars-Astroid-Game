@@ -117,6 +117,7 @@ else:
     high_score = 0
 
 # Main game loop
+level = 1
 while True:
     # Handle events
     for event in pygame.event.get():
@@ -158,6 +159,8 @@ while True:
 
     # Check for collisions
     if not asteroids:
+        level += 1
+        asteroid_speed += 0.5
         asteroids = generate_asteroids()
         score += 1
 
@@ -192,8 +195,11 @@ while True:
     score_textpos = score_text.get_rect(topright=(screen_width - 10, 10))
     high_score_text = font.render(f'High Score: {high_score}', 1, WHITE)
     high_score_textpos = high_score_text.get_rect(topright=(screen_width - 10, 50))
+    level_text = font.render(f'Level: {level}', 1, WHITE)
+    level_textpos = level_text.get_rect(topright=(screen_width - 10, 90))
     screen.blit(score_text, score_textpos)
     screen.blit(high_score_text, high_score_textpos)
+    screen.blit(level_text, level_textpos)
 
     # Update the screen
     pygame.display.flip()
