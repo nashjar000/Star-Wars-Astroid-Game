@@ -1,213 +1,367 @@
 import pygame
 import sys
 import random
-import pygame.mixer
 import os
 
-# Initialize Pygame
+# Initialize Pygame and its modules
 pygame.init()
+pygame.mixer.init()
 
-# Set the screen dimensions
-screen_width = 640 
-screen_height = 480
-screen = pygame.display.set_mode((screen_width, screen_height))
+# ------------------------------
+# Configuration and Constants
+# ------------------------------
+# Screen dimensions
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+SCREEN = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption('Star Wars Asteroid Game')
 
-# Set the title of the window
-pygame.display.set_caption('Star Wars Astroid Game')
-
-# Load the spaceship image
-spaceship_image = pygame.image.load('millennium_falcon.png')
-spaceship_image = pygame.transform.scale(spaceship_image, (30, 30))
-
-# Load the asteroid image
-asteroid_image = pygame.image.load('astroid.png')
-asteroid_image = pygame.transform.scale(asteroid_image, (20, 20))
-
-# Define some colors
+# Colors
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 
-# Define the spaceship speed
-spaceship_speed = 5
+# Frames per second
+FPS = 60
+CLOCK = pygame.time.Clock()
 
-# Define the asteroid speed
-asteroid_speed = 2
+# Asset paths
+ASSETS_DIR = 'assets'  # Ensure you have an 'assets' directory with required images and sounds
+SPACESHIP_IMAGE = os.path.join(ASSETS_DIR, 'millennium_falcon.png')
+ASTEROID_IMAGE = os.path.join(ASSETS_DIR, 'asteroid.png')
+LASER_SOUND_PATH = os.path.join(ASSETS_DIR, 'x-wing_fire.mp3')
+EXPLOSION_SOUND_PATH = os.path.join(ASSETS_DIR, 'TIE_fighter_explode.mp3')
+BACKGROUND_MUSIC_PATH = os.path.join(ASSETS_DIR, 'StarWarsAstroidField.mp3')
+FONT_NAME = None  # Default font
+HIGH_SCORE_FILE = 'high_score.txt'
 
-# Define the initial spaceship position
-spaceship_x = screen_width / 2
-spaceship_y = screen_height / 2
+# ------------------------------
+# Asset Manager
+# ------------------------------
+class AssetManager:
+    def __init__(self):
+        self.images = {}
+        self.sounds = {}
+        self.fonts = {}
 
-# Lasers:
-class Laser:
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
-        self.width = 10
-        self.height = 5
-        self.color = (255, 0, 0, 255) # red
+    def load_image(self, name, path, size=None):
+        if not os.path.isfile(path):
+            print(f"Error: Image file '{path}' not found.")
+            sys.exit(1)
+        try:
+            image = pygame.image.load(path).convert_alpha()
+            if size:
+                image = pygame.transform.scale(image, size)
+            self.images[name] = image
+            return image
+        except pygame.error as e:
+            print(f"Unable to load image {path}: {e}")
+            sys.exit()
+
+    def load_sound(self, name, path):
+        if not os.path.isfile(path):
+            print(f"Error: Sound file '{path}' not found.")
+            sys.exit(1)
+        try:
+            sound = pygame.mixer.Sound(path)
+            self.sounds[name] = sound
+            return sound
+        except pygame.error as e:
+            print(f"Unable to load sound {path}: {e}")
+            sys.exit()
+
+    def get_image(self, name):
+        return self.images.get(name)
+
+    def get_sound(self, name):
+        return self.sounds.get(name)
+
+    def load_font(self, name, path, size):
+        try:
+            font = pygame.font.Font(path, size)
+            self.fonts[name] = font
+            return font
+        except pygame.error as e:
+            print(f"Unable to load font {path}: {e}")
+            sys.exit()
+
+    def get_font(self, name):
+        return self.fonts.get(name)
+
+# Initialize Asset Manager and load assets
+assets = AssetManager()
+# Load images
+spaceship_img = assets.load_image('spaceship', SPACESHIP_IMAGE, (50, 50))
+asteroid_img = assets.load_image('asteroid', ASTEROID_IMAGE, (40, 40))
+# Load sounds
+laser_sound = assets.load_sound('laser', LASER_SOUND_PATH)
+explosion_sound = assets.load_sound('explosion', EXPLOSION_SOUND_PATH)
+# Load background music
+try:
+    pygame.mixer.music.load(BACKGROUND_MUSIC_PATH)
+    pygame.mixer.music.set_volume(0.5)
+except pygame.error as e:
+    print(f"Unable to load background music {BACKGROUND_MUSIC_PATH}: {e}")
+    sys.exit()
+# Load fonts
+font_small = assets.load_font('small', FONT_NAME, 24)
+font_medium = assets.load_font('medium', FONT_NAME, 36)
+font_large = assets.load_font('large', FONT_NAME, 72)
+
+# Start playing background music
+pygame.mixer.music.play(-1)  # Loop indefinitely
+
+# ------------------------------
+# Sprite Classes
+# ------------------------------
+class Spaceship(pygame.sprite.Sprite):
+    def __init__(self, image, pos):
+        super().__init__()
+        self.original_image = image
+        self.image = self.original_image.copy()
+        self.rect = self.image.get_rect(center=pos)
+        self.speed = 5
+        self.lives = 3
+        self.mask = pygame.mask.from_surface(self.image)
+
+    def update(self, keys_pressed, *args, **kwargs):
+        if keys_pressed[pygame.K_UP]:
+            self.rect.y -= self.speed
+            if self.rect.top < 0:
+                self.rect.top = 0
+        if keys_pressed[pygame.K_DOWN]:
+            self.rect.y += self.speed
+            if self.rect.bottom > SCREEN_HEIGHT:
+                self.rect.bottom = SCREEN_HEIGHT
+        if keys_pressed[pygame.K_LEFT]:
+            self.rect.x -= self.speed
+            if self.rect.left < 0:
+                self.rect.left = 0
+        if keys_pressed[pygame.K_RIGHT]:
+            self.rect.x += self.speed
+            if self.rect.right > SCREEN_WIDTH:
+                self.rect.right = SCREEN_WIDTH
+
+class Asteroid(pygame.sprite.Sprite):
+    def __init__(self, image, pos, speed):
+        super().__init__()
+        self.original_image = image
+        self.image = self.original_image.copy()
+        self.rect = self.image.get_rect(topleft=pos)
+        self.speed = speed
+        self.rotation = 0
+        self.rotation_speed = random.randint(-5, 5)
+        self.mask = pygame.mask.from_surface(self.image)
+
+    def update(self, *args, **kwargs):
+        self.rect.x += self.speed
+        self.rotate()
+
+        # Remove asteroid if it moves off screen
+        if self.rect.left > SCREEN_WIDTH:
+            self.kill()
+
+    def rotate(self):
+        """Rotate the asteroid for visual effect."""
+        self.rotation = (self.rotation + self.rotation_speed) % 360
+        self.image = pygame.transform.rotate(self.original_image, self.rotation)
+        self.rect = self.image.get_rect(center=self.rect.center)
+        self.mask = pygame.mask.from_surface(self.image)
+
+class Laser(pygame.sprite.Sprite):
+    def __init__(self, pos):
+        super().__init__()
+        self.image = pygame.Surface((10, 4))
+        self.image.fill((255, 0, 0))  # Red laser
+        self.rect = self.image.get_rect(center=pos)
         self.speed = -10
+        self.mask = pygame.mask.from_surface(self.image)
 
-        # Load and play the laser sound effect
-        pygame.mixer.init()
-        laser_sound = pygame.mixer.Sound('x-wing_fire.mp3')
-        laser_sound.set_volume(0.5)
-        laser_sound.play()
+    def update(self, *args, **kwargs):
+        self.rect.x += self.speed
+        # Remove laser if it moves off screen
+        if self.rect.right < 0 or self.rect.left > SCREEN_WIDTH:
+            self.kill()
 
-    def update(self):
-        self.x += self.speed
+# ------------------------------
+# Game Functions
+# ------------------------------
+def load_high_score(file_path):
+    if os.path.exists(file_path):
+        try:
+            with open(file_path, 'r') as f:
+                return int(f.read())
+        except:
+            return 0
+    else:
+        return 0
 
-    def draw(self, screen):
-        pygame.draw.rect(screen, self.color, (self.x, self.y, self.width, self.height))
-
-lasers = []
-
-# Generate asteroids 
-def generate_asteroids():
-    asteroids = []
-    for i in range(5):
-        asteroid_x = random.randint(0, screen_width // 2)
-        asteroid_y = random.randint(0, screen_height - 20)
-        asteroids.append((asteroid_x, asteroid_y))
-    return asteroids
-
-# Music:
-pygame.mixer.init()
-pygame.mixer.music.set_volume(1)  
-sound = pygame.mixer.Sound('StarWarsAstroidField.mp3')
-pygame.mixer.music.load('StarWarsAstroidField.mp3')
-pygame.mixer.music.play(-1, 1)  # -1 means play indefinitely, 1 means loop
-
-asteroids = generate_asteroids()
-explosion_sound = pygame.mixer.Sound('TIE_fighter_explode.mp3')
-explosion_sound.set_volume(0.5)  # Adjust the volume as needed
-
-score = 0
-font = pygame.font.Font(None, 36)
-
-start_game = True
-while start_game:
-    # Handle events
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            pygame.quit()
-            sys.exit()
-        elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_KP_ENTER or event.key == pygame.K_RETURN:
-                start_game = False
-
-    # Draw the start game screen
-    screen.fill(BLACK)
-    text = font.render('Press Enter to start', 1, WHITE)
-    textpos = text.get_rect(center=(screen_width / 2, screen_height / 2))
-    font = pygame.font.Font(None, 36)
-    blink = pygame.time.get_ticks() % 1000 < 500
-    text = font.render('Press Enter to start', 1, WHITE if blink else BLACK)
-    screen.blit(text, textpos)
-
-    # Update the screen
-    pygame.display.flip()
-    pygame.time.Clock().tick(60) 
-
-# Load the high score from the file
-high_score_file = 'high_score.txt'
-if os.path.exists(high_score_file):
-    with open(high_score_file, 'r') as f:
-        high_score = int(f.read())
-else:
-    high_score = 0
-
-# Main game loop
-level = 1
-while True:
-    # Handle events
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            pygame.quit()
-            sys.exit()
-        elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_SPACE:
-                lasers.append(Laser(spaceship_x + 20, spaceship_y + 15))
-
-    # Get the current key presses
-    keys = pygame.key.get_pressed()
-
-    # Move the spaceship
-    if keys[pygame.K_UP]:
-        spaceship_y -= spaceship_speed
-    if keys[pygame.K_DOWN]:
-        spaceship_y += spaceship_speed
-    if keys[pygame.K_LEFT]:
-        spaceship_x -= spaceship_speed
-    if keys[pygame.K_RIGHT]:
-        spaceship_x += spaceship_speed
-
-    # Move and draw the lasers
-    for laser in lasers:
-        laser.update()
-        laser.draw(screen)
-
-        # Remove lasers that are off the screen
-        if laser.x < 0:
-            lasers.remove(laser)
-
-    # Move the asteroids
-    for i, (asteroid_x, asteroid_y) in enumerate(asteroids):
-        asteroid_x += asteroid_speed
-        if asteroid_x > screen_width:
-            asteroid_x = 0
-        asteroids[i] = (asteroid_x, asteroid_y)
-
-    # Check for collisions
-    if not asteroids:
-        level += 1
-        asteroid_speed += 0.5
-        asteroids = generate_asteroids()
-        score += 1
-
-    for asteroid_x, asteroid_y in asteroids:
-        if (spaceship_x - 15 < asteroid_x < spaceship_x + 15 and
-            spaceship_y - 15 < asteroid_y < spaceship_y + 15):
-            print(f"Game Over! Your score is {score}. Level: {level}. High score: {high_score}")
-            pygame.quit()
-            sys.exit()
-
-        for laser in lasers:
-            if (laser.x + laser.width > asteroid_x and
-                laser.x < asteroid_x + 20 and
-                laser.y + laser.height > asteroid_y and
-                laser.y < asteroid_y + 20):
-                asteroids.remove((asteroid_x, asteroid_y))
-                lasers.remove(laser)
-                explosion_sound.play()
-                score += 1
-                break
-
-    # Draw everything
-    screen.fill(BLACK)
-    screen.blit(spaceship_image, (spaceship_x, spaceship_y))
-    for asteroid_x, asteroid_y in asteroids:
-        screen.blit(asteroid_image, (asteroid_x, asteroid_y))
-    for laser in lasers:
-        laser.draw(screen)
-
-    # Draw the score and high score
-    score_text = font.render(f'Score: {score}', 1, WHITE)
-    score_textpos = score_text.get_rect(topright=(screen_width - 10, 10))
-    high_score_text = font.render(f'High Score: {high_score}', 1, WHITE)
-    high_score_textpos = high_score_text.get_rect(topright=(screen_width - 10, 50))
-    level_text = font.render(f'Level: {level}', 1, WHITE)
-    level_textpos = level_text.get_rect(topright=(screen_width - 10, 90))
-    screen.blit(score_text, score_textpos)
-    screen.blit(high_score_text, high_score_textpos)
-    screen.blit(level_text, level_textpos)
-
-    # Update the screen
-    pygame.display.flip()
-    pygame.time.Clock().tick(60)
-
-    # Save the high score
-    if score > high_score:
-        with open(high_score_file, 'w') as f:
+def save_high_score(file_path, score):
+    try:
+        with open(file_path, 'w') as f:
             f.write(str(score))
-        high_score = score
+    except:
+        print("Failed to save high score.")
 
+def draw_text(surface, text, font, color, pos, center=True):
+    text_obj = font.render(text, True, color)
+    text_rect = text_obj.get_rect()
+    if center:
+        text_rect.center = pos
+    else:
+        text_rect.topleft = pos
+    surface.blit(text_obj, text_rect)
+
+def show_start_screen():
+    start = True
+    blink = True
+    blink_timer = 0
+    blink_interval = 500  # milliseconds
+
+    while start:
+        CLOCK.tick(FPS)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key in [pygame.K_RETURN, pygame.K_KP_ENTER]:
+                    start = False
+
+        # Handle blinking text
+        current_time = pygame.time.get_ticks()
+        if current_time - blink_timer >= blink_interval:
+            blink = not blink
+            blink_timer = current_time
+
+        # Draw start screen
+        SCREEN.fill(BLACK)
+        draw_text(SCREEN, 'STAR WARS ASTEROID GAME', font_large, WHITE, (SCREEN_WIDTH/2, SCREEN_HEIGHT/4))
+        if blink:
+            draw_text(SCREEN, 'Press Enter to Start', font_medium, WHITE, (SCREEN_WIDTH/2, SCREEN_HEIGHT/2))
+        pygame.display.flip()
+
+def show_game_over_screen(score, high_score):
+    over = True
+    while over:
+        CLOCK.tick(FPS)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key in [pygame.K_RETURN, pygame.K_KP_ENTER]:
+                    over = False
+
+        # Draw game over screen
+        SCREEN.fill(BLACK)
+        draw_text(SCREEN, 'GAME OVER', font_large, WHITE, (SCREEN_WIDTH/2, SCREEN_HEIGHT/4))
+        draw_text(SCREEN, f'Score: {score}', font_medium, WHITE, (SCREEN_WIDTH/2, SCREEN_HEIGHT/2 - 40))
+        draw_text(SCREEN, f'High Score: {high_score}', font_medium, WHITE, (SCREEN_WIDTH/2, SCREEN_HEIGHT/2))
+        draw_text(SCREEN, 'Press Enter to Restart', font_medium, WHITE, (SCREEN_WIDTH/2, SCREEN_HEIGHT*3/4))
+        pygame.display.flip()
+
+# ------------------------------
+# Main Game Function
+# ------------------------------
+def main():
+    # Load high score
+    high_score = load_high_score(HIGH_SCORE_FILE)
+
+    # Show start screen
+    show_start_screen()
+
+    # Sprite groups
+    all_sprites = pygame.sprite.Group()
+    asteroids = pygame.sprite.Group()
+    lasers = pygame.sprite.Group()
+
+    # Create spaceship
+    spaceship = Spaceship(spaceship_img, (SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2))
+    all_sprites.add(spaceship)
+
+    # Define custom event for spawning asteroids
+    ADD_ASTEROID_EVENT = pygame.USEREVENT + 1
+    pygame.time.set_timer(ADD_ASTEROID_EVENT, 1000)  # Spawn every 1 second
+
+    # Game variables
+    score = 0
+    level = 1
+    asteroid_speed = 4
+    asteroid_spawn_interval = 1000  # milliseconds
+
+    running = True
+    while running:
+        CLOCK.tick(FPS)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                save_high_score(HIGH_SCORE_FILE, high_score)
+                pygame.quit()
+                sys.exit()
+            elif event.type == ADD_ASTEROID_EVENT:
+                # Spawn a new asteroid
+                y_pos = random.randint(0, SCREEN_HEIGHT - asteroid_img.get_height())
+                asteroid = Asteroid(asteroid_img, (0, y_pos), asteroid_speed)
+                all_sprites.add(asteroid)
+                asteroids.add(asteroid)
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    # Fire a laser
+                    laser = Laser(spaceship.rect.midright)
+                    all_sprites.add(laser)
+                    lasers.add(laser)
+                    laser_sound.play()
+
+        # Get pressed keys
+        keys_pressed = pygame.key.get_pressed()
+
+        # Update all sprites, passing keys_pressed
+        all_sprites.update(keys_pressed)
+
+        # Check for laser-asteroid collisions
+        hits = pygame.sprite.groupcollide(asteroids, lasers, True, True, pygame.sprite.collide_mask)
+        for hit in hits:
+            explosion_sound.play()
+            score += 1
+            # Increase difficulty every 10 points
+            if score % 10 == 0:
+                level += 1
+                asteroid_speed += 1
+                # Decrease spawn interval but set a minimum limit
+                asteroid_spawn_interval = max(250, asteroid_spawn_interval - 100)
+                pygame.time.set_timer(ADD_ASTEROID_EVENT, asteroid_spawn_interval)
+
+        # Check for asteroid-spaceship collisions
+        hits = pygame.sprite.spritecollide(spaceship, asteroids, True, pygame.sprite.collide_mask)
+        if hits:
+            explosion_sound.play()
+            spaceship.lives -= 1
+            if spaceship.lives <= 0:
+                # Update high score if necessary
+                if score > high_score:
+                    high_score = score
+                    save_high_score(HIGH_SCORE_FILE, high_score)
+                show_game_over_screen(score, high_score)
+                # Reset game
+                main()
+
+        # Draw everything
+        SCREEN.fill(BLACK)
+
+        # Optionally, add a scrolling starfield background here
+
+        all_sprites.draw(SCREEN)
+
+        # Draw HUD (Score, High Score, Level, Lives)
+        draw_text(SCREEN, f'Score: {score}', font_small, WHITE, (10, 10), center=False)
+        draw_text(SCREEN, f'High Score: {high_score}', font_small, WHITE, (10, 40), center=False)
+        draw_text(SCREEN, f'Level: {level}', font_small, WHITE, (10, 70), center=False)
+        draw_text(SCREEN, f'Lives: {spaceship.lives}', font_small, WHITE, (10, 100), center=False)
+
+        pygame.display.flip()
+
+# ------------------------------
+# Entry Point
+# ------------------------------
+if __name__ == "__main__":
+    main()
